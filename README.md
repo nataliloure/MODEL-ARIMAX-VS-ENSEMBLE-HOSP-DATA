@@ -101,4 +101,8 @@ desvio_padrao <- sd(previsoes$mean)
 media <- mean(previsoes$mean)
 coef_variacao <- (desvio_padrao / media) * 100
 cat("Coeficiente de Variação do Modelo ARIMAX:", coef_variacao, "%\n")
+
+residuos <- residuals(modelo_arimax)
+shapiro.test(residuos)
+
 ``````

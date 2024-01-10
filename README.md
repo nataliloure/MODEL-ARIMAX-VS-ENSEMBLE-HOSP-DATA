@@ -105,4 +105,7 @@ cat("Coeficiente de Variação do Modelo ARIMAX:", coef_variacao, "%\n")
 residuos <- residuals(modelo_arimax)
 shapiro.test(residuos)
 
+acf_residuos <- acf(residuos, lag.max = 20, main = "Autocorrelação dos Resíduos")
+plot(acf_residuos)
+
 ``````

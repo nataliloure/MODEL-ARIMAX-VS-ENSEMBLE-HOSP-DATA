@@ -1,0 +1,123 @@
+# Previsão de dados hospitalares através da técnica de ensemble XGBoost com validação cruzada k-fold
+
+```
+
+install.packages(c("forecast", "caret", "xgboost", "randomForest", "readxl", "modeltools", "tidyverse", "plotly", "ggplotly", "ggplot2"))
+
+# Carregue as bibliotecas necessárias
+library(forecast)
+library(caret)
+library(xgboost)
+library(randomForest)
+library(readxl)
+library(modeltools)
+library(stats19)
+library(stats4teaching)
+library(statsr)
+library(ggplotify)
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+
+caminho_do_arquivo <- ""      
+dados <- read_xlsx(caminho_do_arquivo)
+
+class(dados)
+str(dados)
+
+dados$ds <- as.Date(dados$ds, format = "%Y-%m-%d")
+dados <- subset(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
+numero_de_passos_a_prever <- 12
+
+dados_treino <- dados[1:(nrow(dados) - numero_de_passos_a_prever), ]
+dados_teste <- dados[(nrow(dados) - numero_de_passos_a_prever + 1):nrow(dados), ]
+
+set.seed(123)  # Defina uma semente para reprodutibilidade
+modelo_xgboost_cv <- train(
+  x = as.matrix(dados_treino[, c("numero_obitos", "dias_internacao")]),
+  y = dados_treino$numero_obitos,
+  method = "xgbTree",  # Método XGBoost
+  trControl = trainControl(method = "cv", number = 5),  # 5-fold cross-validation
+  tuneGrid = expand.grid(
+    nrounds = c(50, 100, 150),
+    max_depth = c(3, 6, 9),
+    eta = c(0.01, 0.1, 0.3),
+    gamma = c(0, 1, 2),
+    colsample_bytree = c(0.5, 0.7, 1),
+    min_child_weight = c(1, 5, 10),
+    subsample = c(0.7, 0.8, 0.9)
+  ) 
+)
+
+best_params <- modelo_xgboost_cv$bestTune
+
+previsoes_xgboost_cv <- predict(modelo_xgboost_cv, newdata = as.matrix(dados_teste[, c("numero_obitos", "dias_internacao")]))
+
+df_previsoes_xgboost_cv <- data.frame(
+  ds = seq(from = max(dados$ds), by = "months", length.out = numero_de_passos_a_prever),
+  previsao = previsoes_xgboost_cv
+)
+
+ggplot() +
+  geom_line(data = dados, aes(x = ds, y = numero_obitos), color = "black", size = 1) +
+  geom_line(data = df_previsoes_xgboost_cv, aes(x = ds, y = previsao, linetype = "Previsões XGBoost (CV)"), color = "blue") +
+  labs(title = "Previsão de Óbitos com XGBoost e Validação Cruzada",
+       x = "Tempo",
+       y = "Número de Óbitos") +
+  scale_linetype_manual(name = "Linhas",
+                        values = c("solid", "dashed"),
+                        labels = c("Observações", "Previsões XGBoost (CV)")) +
+  theme_minimal()
+
+residuos_cv <- dados_teste$numero_obitos - previsoes_xgboost_cv
+
+plot(previsoes_xgboost_cv, residuos_cv, main = "Resíduos vs. Previsões (CV)", xlab = "Previsões", ylab = "Resíduos")
+abline(h = 0, col = "blue", lty = 2)
+
+acf(residuos_cv, main = "Autocorrelação dos Resíduos (CV)")
+
+df_previsoes_xgboost_cv <- data.frame(
+  Data = seq(from = max(dados$ds), by = "months", length.out = numero_de_passos_a_prever),
+  Previsao_XGBoost_CV = previsoes_xgboost_cv
+)
+
+print(df_previsoes_xgboost_cv)
+
+mae_cv <- mean(abs(residuos_cv))
+mape_cv <- mean(abs(residuos_cv / dados_teste$numero_obitos)) * 100
+rmse_cv <- sqrt(mean(residuos_cv^2))
+me_cv <- mean(residuos_cv)
+mpe_cv <- mean((residuos_cv / dados_teste$numero_obitos) * 100)
+
+cat("Erro Médio Absoluto (MAE) com validação cruzada:", mae_cv, "\n")
+cat("Erro Médio Percentual Absoluto (MAPE) com validação cruzada:", mape_cv, "%\n")
+cat("Erro Quadrático Médio (RMSE) com validação cruzada:", rmse_cv, "\n")
+cat("Erro Médio (ME) com validação cruzada:", me_cv, "\n")
+cat("Erro Percentual Médio (MPE) com validação cruzada:", mpe_cv, "%\n")
+
+resultados_xgboost_cv <- data.frame(
+  Métrica = c("Acurácia (CV)", "R² (CV)"),
+  Valor = c(
+    caret::postResample(pred = previsoes_xgboost_cv, obs = dados_teste$numero_obitos),
+    cor(dados_teste$numero_obitos, previsoes_xgboost_cv)^2
+  )
+)
+
+print(resultados_xgboost_cv)
+
+cv_residuos_cv <- (sd(residuos_cv) / mean(dados_teste$numero_obitos)) * 100
+cat("Coeficiente de Variação (CV) dos Resíduos com validação cruzada:", cv_residuos_cv, "%\n")
+
+hist(residuos_cv, 
+     main = "Histograma dos Resíduos (CV)",  
+     xlab = "Resíduos",                       
+     col = "lightblue",                     
+     border = "black",                      
+     breaks = 20                              
+)
+
+summary(previsoes_xgboost_cv)
+shapiro.test(residuos_cv)
+
+``` 
+

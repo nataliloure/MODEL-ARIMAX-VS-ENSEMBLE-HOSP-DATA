@@ -1,0 +1,82 @@
+# Previsão de mortalidade hospitalar através do ensemble Bagging por meio do método Random Forest  
+
+````
+install.packages(c("forecast", "caret", "xgboost", "randomForest", "readxl", "tidyverse", "plotly", "ggplot2","MASS"))
+
+library(forecast)
+library(caret)
+library(xgboost)
+library(randomForest)
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(MASS)
+
+caminho_do_arquivo <- "C:/Users/natal/Documents/TCC USP ESALQ/TEXTO/BANCO DE DADOS/BANCO_DE_DADOS - Copia.xlsx"
+dados <- read_xlsx(caminho_do_arquivo)
+
+caminho_do_arquivo <- "C:/Users/natal/Documents/TCC USP ESALQ/TEXTO/BANCO DE DADOS/BANCO_DE_DADOS - Copia.xlsx"
+dados <- read_xlsx(caminho_do_arquivo)
+
+dados$ds <- as.Date(dados$ds, format = "%Y-%m-%d")
+
+dados <- subset(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
+
+lambda_dias_internacao <- BoxCox.lambda(dados$dias_internacao + 1)  # Adiciona 1 para lidar com valores zero
+dados$dias_internacao_transformado <- BoxCox(dados$dias_internacao + 1, lambda_dias_internacao)
+
+lambda_numero_obitos <- BoxCox.lambda(dados$numero_obitos + 1)  # Adiciona 1 para lidar com valores zero
+dados$numero_obitos_transformado <- BoxCox(dados$numero_obitos + 1, lambda_numero_obitos)
+
+dados_treino <- dados[1:(nrow(dados) - numero_de_passos_a_prever), ]
+dados_teste <- dados[(nrow(dados) - numero_de_passos_a_prever + 1):nrow(dados), ]
+
+set.seed(123)
+rf_model <- randomForest(numero_obitos_transformado ~ ds + dias_internacao_transformado, data = dados_treino, ntree = 50)
+rf_predictions_transformado <- predict(rf_model, newdata = dados_teste)
+rf_predictions <- InvBoxCox(rf_predictions_transformado, lambda = lambda)
+
+df_previsoes_rf <- data.frame(
+  ds = seq(from = max(dados$ds), by = "months", length.out = numero_de_passos_a_prever),
+  previsao = rf_predictions
+)
+
+residuos_rf <- rf_predictions - dados_teste$numero_obitos
+me_rf <- mean(residuos_rf)
+rmse_rf <- sqrt(mean(residuos_rf^2))
+mae_rf <- mean(abs(residuos_rf))
+mpe_rf <- mean((residuos_rf / dados_teste$numero_obitos) * 100)
+mape_rf <- mean(abs((residuos_rf / dados_teste$numero_obitos) * 100))
+
+cat("Modelo Random Forest:\n")
+cat("ME:", round(me_rf, 2), "\n")
+cat("RMSE:", round(rmse_rf, 2), "\n")
+cat("MAE:", round(mae_rf, 2), "\n")
+cat("MPE:", round(mpe_rf, 2), "%\n")
+cat("MAPE:", round(mape_rf, 2), "%\n")
+
+print(df_previsoes_rf)
+
+summary(df_previsoes_rf)
+
+soma_quadrados_total <- sum((dados_teste$numero_obitos - mean(dados_teste$numero_obitos))^2)
+soma_quadrados_residual <- sum((dados_teste$numero_obitos - rf_predictions)^2)
+r2 <- 1 - (soma_quadrados_residual / soma_quadrados_total)
+cat("R² do modelo Random Forest:", round(r2, 4), "\n")
+
+cv_rf <- (sd(residuos_rf) / mean(dados_teste$numero_obitos)) * 100
+cat("Coeficiente de Variação para o modelo Random Forest:", round(cv_rf, 2), "%\n")
+
+ggplot() +
+  geom_line(data = dados, aes(x = ds, y = numero_obitos), color = "black", size = 1) +
+  geom_line(data = df_previsoes_rf, aes(x = ds, y = previsao, linetype = "Previsões RF"), color = "orange", size = 0.5) +
+  geom_ribbon(data = df_previsoes_rf, aes(x = ds, ymin = previsao - 1.96 * sd(residuos_rf), ymax = previsao + 1.96 * sd(residuos_rf)), fill = "lightblue", alpha = 0.3) +
+  labs(title = "Previsão de Óbitos com Random Forest",
+       x = "Tempo",
+       y = "Número de Óbitos") +
+  scale_linetype_manual(name = "Previsões", values = "dashed") +
+  theme_minimal()
+
+shapiro.test(residuos_rf)
+````
+ 

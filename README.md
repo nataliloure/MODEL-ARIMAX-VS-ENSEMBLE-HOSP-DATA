@@ -25,15 +25,13 @@ caminho_do_arquivo <- ""
 
 dados <- read_xlsx(caminho_do_arquivo) %>%
   mutate(ds = as.Date(ds, format = "%Y-%m-%d")) %>%
+  filter(!is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31")) %>%
   as_tsibble(index = ds)
-
-dados <- filter(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
 
 class(dados)
 str(dados)
 
 dados$ds <- as.Date(dados$ds, format = "%Y-%m-%d")
-dados <- subset(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
 numero_de_passos_a_prever <- 12
 
 

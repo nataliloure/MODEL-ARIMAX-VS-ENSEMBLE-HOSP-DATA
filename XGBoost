@@ -118,6 +118,9 @@ hist(residuos_cv,
 
 summary(previsoes_xgboost_cv)
 shapiro.test(residuos_cv)
+acf(residuos_cv)
+pacf(residuos_cv)
+
 
 ``` 
 

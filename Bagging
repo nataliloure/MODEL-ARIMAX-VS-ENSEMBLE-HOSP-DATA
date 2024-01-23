@@ -12,15 +12,12 @@ library(tidyverse)
 library(ggplot2)
 library(MASS)
 
-caminho_do_arquivo <- "C:/Users/natal/Documents/TCC USP ESALQ/TEXTO/BANCO DE DADOS/BANCO_DE_DADOS - Copia.xlsx"
-dados <- read_xlsx(caminho_do_arquivo)
 
-caminho_do_arquivo <- "C:/Users/natal/Documents/TCC USP ESALQ/TEXTO/BANCO DE DADOS/BANCO_DE_DADOS - Copia.xlsx"
+caminho_do_arquivo <- "     "
 dados <- read_xlsx(caminho_do_arquivo)
+         subset(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
 
 dados$ds <- as.Date(dados$ds, format = "%Y-%m-%d")
-
-dados <- subset(dados, !is.na(ds) & ds >= as.Date("2012-01-01") & ds <= as.Date("2022-12-31"))
 
 lambda_dias_internacao <- BoxCox.lambda(dados$dias_internacao + 1)  # Adiciona 1 para lidar com valores zero
 dados$dias_internacao_transformado <- BoxCox(dados$dias_internacao + 1, lambda_dias_internacao)
@@ -78,5 +75,7 @@ ggplot() +
   theme_minimal()
 
 shapiro.test(residuos_rf)
+acf(residuos_rf)
+pacf(residuos_rf)
 ````
  

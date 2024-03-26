@@ -29,7 +29,7 @@ The ARIMAX model adequately captured the temporal structure of the data. Signifi
 | Sep/2023	| 12.055	| 11.565 |
 | Oct/2023	| 11.720 |	10.998 |
 | Nov/2023 |	11.496 | 11.163 |
-| Dez/2023	| 11.142 |	Ainda não informado pelo Ministério da Saúde. |
+| Dez/2023	| 11.142 |Not yet informed by the Ministry of Health. |
 
 In Figure 1, we can infer that over the ten years, the months of January, June, July, and November experienced greater variability.
 
@@ -52,22 +52,22 @@ In addition to the ARIMAX model, a Bagging model with RF was applied to improve 
 | Jul / 2023	|11.808	| 12.399 |
 | Ago / 2023	| 11.787	| 12.286 |
 | Oct / 2023	|11.785	| 10.998 |
-| Dec / 2023 |11.761	| Ainda não informado pelo Ministério da Saúde.|
+| Dec / 2023 |11.761	|Not yet informed by the Ministry of Health. |
 
 
 ### Boosting Model:
 The Boosting model, using the XGBoost method, showed promise, with a growing trend in the number of deaths. Despite some flaws in month linearity, the XGBoost model exhibited relatively low error metrics compared to other models, suggesting superior performance.
 
 | Month / Year	 |	XGBoost Forecast		| 2023 Actual Data |
-| -------- | ----------------- | -------------------- |
-|Dec / 2022	|13.646	|11.024 |
-|Jan / 2023	|12.857	|11.144 |
-|Mar / 2023	|10.789	|11.345 |
+| -------- | ----------------- |   --------------------    |
+|Dec / 2022	|13.646  |     11.024            |
+|Jan / 2023	|12.857	 |     11.144            |
+|Mar / 2023	|10.789	|   11.345 |
 |May / 2023	|11.247	|11.338 |
 |Jul / 2023	|11.563	|12.399 |
 |Ago / 2023	|11.511	|12.286 |
 |Oct / 2023	|11.208	|10.998| 
-|Dec / 2023	|11.004	|Ainda não informado pelo Ministério da Saúde.|
+|Dec / 2023	|11.004	|Not yet informed by the Ministry of Health. .|
 
 
 

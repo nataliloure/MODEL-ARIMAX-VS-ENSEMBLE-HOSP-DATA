@@ -1,0 +1,131 @@
+# Instale as bibliotecas necessárias
+!pip install pandas numpy scikit-learn xgboost plotly matplotlib openpyxl
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import matplotlib.pyplot as plt
+import plotly.express as px
+from datetime import datetime, timedelta
+
+# Carregar dados
+caminho_do_arquivo = ""  # Adicione o caminho para o seu arquivo
+dados = pd.read_excel(caminho_do_arquivo)
+
+# Exibir a estrutura dos dados
+print(dados.info())
+print(dados.head())
+
+# Converter a coluna de datas para o formato datetime
+dados['ds'] = pd.to_datetime(dados['ds'], format='%Y-%m-%d')
+dados = dados[(dados['ds'] >= '2012-01-01') & (dados['ds'] <= '2022-12-31')]
+
+# Número de passos a prever
+numero_de_passos_a_prever = 12
+
+# Separar dados de treino e teste
+dados_treino = dados.iloc[:-numero_de_passos_a_prever]
+dados_teste = dados.iloc[-numero_de_passos_a_prever:]
+
+# Definir os parâmetros para a validação cruzada
+param_grid = {
+    'n_estimators': [50, 100, 150],
+    'max_depth': [3, 6, 9],
+    'learning_rate': [0.01, 0.1, 0.3],
+    'gamma': [0, 1, 2],
+    'colsample_bytree': [0.5, 0.7, 1],
+    'min_child_weight': [1, 5, 10],
+    'subsample': [0.7, 0.8, 0.9]
+}
+
+# Definir modelo
+xgboost = XGBRegressor(objective='reg:squarederror', random_state=123)
+
+# Validação cruzada k-fold
+kfold = KFold(n_splits=5, shuffle=True, random_state=123)
+grid_search = GridSearchCV(estimator=xgboost, param_grid=param_grid, cv=kfold, scoring='neg_mean_absolute_error', verbose=1)
+grid_search.fit(dados_treino[['numero_obitos', 'dias_internacao']], dados_treino['numero_obitos'])
+
+# Melhor modelo
+best_model = grid_search.best_estimator_
+
+# Previsões
+previsoes_xgboost_cv = best_model.predict(dados_teste[['numero_obitos', 'dias_internacao']])
+
+# DataFrame de previsões
+df_previsoes_xgboost_cv = pd.DataFrame({
+    'ds': pd.date_range(start=dados['ds'].max() + timedelta(days=1), periods=numero_de_passos_a_prever, freq='M'),
+    'previsao': previsoes_xgboost_cv
+})
+
+# Plotar resultados
+fig = px.line(dados, x='ds', y='numero_obitos', title='Previsão de Óbitos com XGBoost e Validação Cruzada')
+fig.add_scatter(x=df_previsoes_xgboost_cv['ds'], y=df_previsoes_xgboost_cv['previsao'], mode='lines', name='Previsões XGBoost (CV)')
+fig.show()
+
+# Calcular resíduos
+residuos_cv = dados_teste['numero_obitos'] - previsoes_xgboost_cv
+
+# Plotar resíduos
+plt.scatter(previsoes_xgboost_cv, residuos_cv)
+plt.axhline(y=0, color='blue', linestyle='--')
+plt.xlabel('Previsões')
+plt.ylabel('Resíduos')
+plt.title('Resíduos vs. Previsões (CV)')
+plt.show()
+
+# Autocorrelação dos resíduos
+pd.plotting.autocorrelation_plot(residuos_cv)
+plt.title('Autocorrelação dos Resíduos (CV)')
+plt.show()
+
+# Métricas de avaliação
+mae_cv = mean_absolute_error(dados_teste['numero_obitos'], previsoes_xgboost_cv)
+mape_cv = np.mean(np.abs(residuos_cv / dados_teste['numero_obitos'])) * 100
+rmse_cv = np.sqrt(mean_squared_error(dados_teste['numero_obitos'], previsoes_xgboost_cv))
+me_cv = np.mean(residuos_cv)
+mpe_cv = np.mean((residuos_cv / dados_teste['numero_obitos']) * 100)
+
+print(f"Erro Médio Absoluto (MAE) com validação cruzada: {mae_cv}")
+print(f"Erro Médio Percentual Absoluto (MAPE) com validação cruzada: {mape_cv}%")
+print(f"Erro Quadrático Médio (RMSE) com validação cruzada: {rmse_cv}")
+print(f"Erro Médio (ME) com validação cruzada: {me_cv}")
+print(f"Erro Percentual Médio (MPE) com validação cruzada: {mpe_cv}%")
+
+# Resultados das métricas adicionais
+r2_cv = r2_score(dados_teste['numero_obitos'], previsoes_xgboost_cv)
+
+resultados_xgboost_cv = pd.DataFrame({
+    'Métrica': ['Acurácia (CV)', 'R² (CV)'],
+    'Valor': [best_model.score(dados_teste[['numero_obitos', 'dias_internacao']], dados_teste['numero_obitos']), r2_cv]
+})
+
+print(resultados_xgboost_cv)
+
+# Coeficiente de Variação dos Resíduos
+cv_residuos_cv = (np.std(residuos_cv) / np.mean(dados_teste['numero_obitos'])) * 100
+print(f"Coeficiente de Variação (CV) dos Resíduos com validação cruzada: {cv_residuos_cv}%")
+
+# Histograma dos resíduos
+plt.hist(residuos_cv, bins=20, color='lightblue', edgecolor='black')
+plt.title('Histograma dos Resíduos (CV)')
+plt.xlabel('Resíduos')
+plt.ylabel('Frequência')
+plt.show()
+
+# Teste de normalidade
+from scipy.stats import shapiro
+
+shapiro_test = shapiro(residuos_cv)
+print(f"Shapiro-Wilk Test: {shapiro_test}")
+
+# ACF e PACF dos resíduos
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+plot_acf(residuos_cv)
+plt.show()
+
+plot_pacf(residuos_cv)
+plt.show()

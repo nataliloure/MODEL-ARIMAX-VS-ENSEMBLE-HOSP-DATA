@@ -32,95 +32,102 @@ numero_de_passos_a_prever <- 12
 dados_treino <- dados[1:(nrow(dados) - numero_de_passos_a_prever), ]
 dados_teste <- dados[(nrow(dados) - numero_de_passos_a_prever + 1):nrow(dados), ]
 
-set.seed(123)  # Defina uma semente para reprodutibilidade
-modelo_xgboost_cv <- train(
-  x = as.matrix(dados_treino[, c("numero_obitos", "dias_internacao")]),
-  y = dados_treino$numero_obitos,
-  method = "xgbTree",  # Método XGBoost
-  trControl = trainControl(method = "cv", number = 5),  # 5-fold cross-validation
-  tuneGrid = expand.grid(
-    nrounds = c(50, 100, 150),
-    max_depth = c(3, 6, 9),
-    eta = c(0.01, 0.1, 0.3),
-    gamma = c(0, 1, 2),
-    colsample_bytree = c(0.5, 0.7, 1),
-    min_child_weight = c(1, 5, 10),
-    subsample = c(0.7, 0.8, 0.9)
-  ) 
+
+# Treinamento do modelo XGBoost sem validação cruzada
+set.seed(123)  # Set a seed for reproducibility
+modelo_xgboost <- xgboost(
+  data = as.matrix(dados_treino[, c("numero_obitos", "dias_internacao")]),
+  label = dados_treino$numero_obitos,
+  nrounds = 100,  # Número de rounds
+  max_depth = 6,  # Profundidade máxima
+  eta = 0.1,  # Taxa de aprendizado
+  gamma = 1,  # Parâmetro gamma
+  colsample_bytree = 0.7,  # Colunas amostradas
+  min_child_weight = 5,  # Peso mínimo da folha
+  subsample = 0.8,  # Subamostragem
+  objective = "reg:squarederror",  # Função objetivo
+  verbose = 0  # Modo silencioso
 )
 
-best_params <- modelo_xgboost_cv$bestTune
 
-previsoes_xgboost_cv <- predict(modelo_xgboost_cv, newdata = as.matrix(dados_teste[, c("numero_obitos", "dias_internacao")]))
+# Fazer previsões usando o modelo treinado
+previsoes_xgboost <- predict(modelo_xgboost, newdata = as.matrix(dados_teste[, c("numero_obitos", "dias_internacao")]))
 
-df_previsoes_xgboost_cv <- data.frame(
+
+
+# Criar um dataframe para as previsões
+df_previsoes_xgboost <- data.frame(
   ds = seq(from = max(dados$ds), by = "months", length.out = numero_de_passos_a_prever),
-  previsao = previsoes_xgboost_cv
+  previsao = previsoes_xgboost
 )
 
+# Crie o gráfico usando ggplot2
 ggplot() +
+  # Série temporal original
   geom_line(data = dados, aes(x = ds, y = numero_obitos), color = "black", size = 1) +
-  geom_line(data = df_previsoes_xgboost_cv, aes(x = ds, y = previsao, linetype = "Previsões XGBoost (CV)"), color = "blue") +
-  labs(title = "Previsão de Óbitos com XGBoost e Validação Cruzada",
+  # Linha das previsões XGBoost
+  geom_line(data = df_previsoes_xgboost, aes(x = ds, y = previsao, linetype = "Previsões XGBoost"), color = "blue") +
+  # Adicione rótulos e títulos
+  labs(title = "Previsão de Óbitos com XGBoost",
        x = "Tempo",
        y = "Número de Óbitos") +
+  # Adicione uma legenda
   scale_linetype_manual(name = "Linhas",
                         values = c("solid", "dashed"),
-                        labels = c("Observações", "Previsões XGBoost (CV)")) +
+                        labels = c("Observações", "Previsões XGBoost")) +
   theme_minimal()
 
-residuos_cv <- dados_teste$numero_obitos - previsoes_xgboost_cv
+# Obter resíduos
+residuos <- dados_teste$numero_obitos - previsoes_xgboost
 
-plot(previsoes_xgboost_cv, residuos_cv, main = "Resíduos vs. Previsões (CV)", xlab = "Previsões", ylab = "Resíduos")
+# Gráfico de resíduos em relação às previsões
+plot(previsoes_xgboost, residuos, main = "Resíduos vs. Previsões", xlab = "Previsões", ylab = "Resíduos")
 abline(h = 0, col = "blue", lty = 2)
 
-acf(residuos_cv, main = "Autocorrelação dos Resíduos (CV)")
+# Gráfico de autocorrelação dos resíduos
+acf(residuos, main = "Autocorrelação dos Resíduos")
 
-df_previsoes_xgboost_cv <- data.frame(
+# Criar um dataframe para as previsões
+df_previsoes_xgboost <- data.frame(
   Data = seq(from = max(dados$ds), by = "months", length.out = numero_de_passos_a_prever),
-  Previsao_XGBoost_CV = previsoes_xgboost_cv
+  Previsao_XGBoost = previsoes_xgboost
 )
 
-print(df_previsoes_xgboost_cv)
+# Exibir a tabela de previsões
+print(df_previsoes_xgboost)
 
-mae_cv <- mean(abs(residuos_cv))
-mape_cv <- mean(abs(residuos_cv / dados_teste$numero_obitos)) * 100
-rmse_cv <- sqrt(mean(residuos_cv^2))
-me_cv <- mean(residuos_cv)
-mpe_cv <- mean((residuos_cv / dados_teste$numero_obitos) * 100)
+# Calcular métricas de desempenho
+mae <- mean(abs(residuos))
+mape <- mean(abs(residuos / dados_teste$numero_obitos)) * 100
+rmse <- sqrt(mean(residuos^2))
+me <- mean(residuos)
+mpe <- mean((residuos / dados_teste$numero_obitos) * 100)
 
-cat("Erro Médio Absoluto (MAE) com validação cruzada:", mae_cv, "\n")
-cat("Erro Médio Percentual Absoluto (MAPE) com validação cruzada:", mape_cv, "%\n")
-cat("Erro Quadrático Médio (RMSE) com validação cruzada:", rmse_cv, "\n")
-cat("Erro Médio (ME) com validação cruzada:", me_cv, "\n")
-cat("Erro Percentual Médio (MPE) com validação cruzada:", mpe_cv, "%\n")
+# Exibir métricas de desempenho
+cat("Erro Médio Absoluto (MAE):", mae, "\n")
+cat("Erro Médio Percentual Absoluto (MAPE):", mape, "%\n")
+cat("Erro Quadrático Médio (RMSE):", rmse, "\n")
+cat("Erro Médio (ME):", me, "\n")
+cat("Erro Percentual Médio (MPE):", mpe, "%\n")
 
-resultados_xgboost_cv <- data.frame(
-  Métrica = c("Acurácia (CV)", "R² (CV)"),
-  Valor = c(
-    caret::postResample(pred = previsoes_xgboost_cv, obs = dados_teste$numero_obitos),
-    cor(dados_teste$numero_obitos, previsoes_xgboost_cv)^2
-  )
+# Calcular o Coeficiente de Variação (CV) dos resíduos
+cv_residuos <- (sd(residuos) / mean(dados_teste$numero_obitos)) * 100
+cat("Coeficiente de Variação (CV) dos Resíduos:", cv_residuos, "%\n")
+
+# Histograma dos resíduos
+hist(residuos, 
+     main = "Histograma dos Resíduos",  # Título do histograma
+     xlab = "Resíduos",                       # Rótulo do eixo x
+     col = "lightblue",                       # Cor das barras do histograma
+     border = "black",                        # Cor da borda das barras
+     breaks = 20                              # Número de quebras (ajuste conforme necessário)
 )
 
-print(resultados_xgboost_cv)
+# Sumário estatístico das previsões
+summary(previsoes_xgboost)
 
-cv_residuos_cv <- (sd(residuos_cv) / mean(dados_teste$numero_obitos)) * 100
-cat("Coeficiente de Variação (CV) dos Resíduos com validação cruzada:", cv_residuos_cv, "%\n")
+# Teste de normalidade Shapiro-Wilk
+shapiro.test(residuos)
 
-hist(residuos_cv, 
-     main = "Histograma dos Resíduos (CV)",  
-     xlab = "Resíduos",                       
-     col = "lightblue",                     
-     border = "black",                      
-     breaks = 20                              
-)
-
-summary(previsoes_xgboost_cv)
-shapiro.test(residuos_cv)
-acf(residuos_cv)
-pacf(residuos_cv)
-
-
-``` 
-
+# Teste de Dickey-Fuller
+adf.test(dados$numero_obitos, alternative = "stationary")
